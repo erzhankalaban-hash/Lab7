@@ -6,28 +6,30 @@ use App\Http\Requests\PlayerRequest;
 use App\Models\Country;
 use App\Models\Player;
 use App\Models\Tournament;
+use App\Queries\PlayerFilter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 
 class PlayerController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request, PlayerFilter $filter)
     {
-        $countryCode = $request->query('country_code');
+        $input = $request->validate([
+            'q'              => ['nullable', 'string', 'max:50'],
+            'tournamentName' => ['nullable', 'string', 'max:100'],
+            'country_code'   => ['nullable', 'string', 'size:2', 'exists:country,code'],
+            'tournament_id'  => ['nullable', 'integer', 'exists:tournaments,id'],
+            'sort'           => ['nullable', 'string', 'max:30'],
+        ]);
 
-        $players = Player::query()
-            ->with('country')
-            ->withCount('tournaments')
-            ->when($countryCode, function ($query, $countryCode) {
-                $query->where('country_code', $countryCode);
-            })
-            ->orderBy('last_name')
+        $players = $filter->apply($input)
             ->paginate(5)
             ->withQueryString();
 
-        $countries = Country::orderBy('name')->pluck('name', 'code');
+        $countries   = Country::orderBy('name')->pluck('name', 'code');
+        $tournaments = Tournament::orderBy('name')->pluck('name', 'id');
 
-        return view('players.index', compact('players', 'countries', 'countryCode'));
+        return view('players.index', compact('players', 'countries', 'tournaments'));
     }
 
     public function create()
